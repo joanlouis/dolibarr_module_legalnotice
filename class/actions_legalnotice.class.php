@@ -64,18 +64,20 @@ class ActionsLegalNotice
 	{
 		return 0;
 	}
-	
+
 	function beforePDFCreation($parameters, &$object, &$action, $hookmanager)
 	{
 		global $conf;
+
+
+        dol_include_once('/legalnotice/class/legalnotice.class.php');
+
 		$TContext = explode(':', $parameters['context']);
 
 		if (in_array('invoicecard', $TContext))
 		{
 			if (!defined('INC_FROM_DOLIBARR')) define('INC_FROM_DOLIBARR', 1);
-			dol_include_once('/legalnotice/config.php');
-			dol_include_once('/legalnotice/class/legalnotice.class.php');
-
+            dol_include_once('/legalnotice/config.php');
 			if(empty($object->thidparty->id)) $object->fetch_thirdparty();
 			if(empty($object->lines)) $object->fetch_lines();
 
@@ -89,11 +91,12 @@ class ActionsLegalNotice
 
 			$legal = new LegalNotice($this->db);
 			$TLegalNotice = $legal->fetchAll();
-			
+
 			foreach($TLegalNotice as &$legalNotice)
 			{
 				if ($object->thirdparty->tva_assuj != $legalNotice->is_assuj_tva && $legalNotice->is_assuj_tva != -1) continue;
 				if (!in_array($object->thirdparty->country_id, $legalNotice->fk_country) && !in_array(-1, $legalNotice->fk_country)) continue;
+				if (!in_array($object->thirdparty->typent_id, $legalNotice->fk_typent) && !in_array(-1, $legalNotice->fk_typent)) continue;
 				// -2 = Produit OU Service, donc on considère que c'est OK dans tout les cas et qu'il ne faut pas faire un "continue"
 				if ($product_type != $legalNotice->product_type && $legalNotice->product_type != -2) continue;
 
@@ -102,7 +105,22 @@ class ActionsLegalNotice
 				break;	// On s'arrête à la première mention légale qui réunit toutes les conditions
 			}
 		}
-		
+		if(in_array('propalcard', $TContext) && !empty($conf->global->LEGALNOTICE_MULTI_NOTICE_PROPAL) && !empty($object->array_options['options_legalnotice_selected_notice'])) {
+		    $TLegalId = array($object->array_options['options_legalnotice_selected_notice']);
+            if(strpos($object->array_options['options_legalnotice_selected_notice'],',') !== false) $TLegalId = explode(',',$object->array_options['options_legalnotice_selected_notice']);
+
+            if(!empty($TLegalId)) {
+                foreach($TLegalId as $fk_notice) {
+                    $legal = new LegalNotice($this->db);
+                    $legal->fetch($fk_notice);
+                    if(! empty($conf->global->PROPOSAL_FREE_TEXT))$conf->global->PROPOSAL_FREE_TEXT .= "\n<br />";
+                    $conf->global->PROPOSAL_FREE_TEXT .= $legal->mention;
+                }
+            }
+
+
+        }
+
 		return 0;
 	}
 }
